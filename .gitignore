@@ -1,0 +1,10 @@
+node_modules/
+public/
+db.json
+.deploy*/
+.temp/
+.cache/
+
+# local tools
+.tools/
+
