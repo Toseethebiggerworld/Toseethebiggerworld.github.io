@@ -28,6 +28,9 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Set timezone
+        run: echo "TZ=Asia/Shanghai" >> $GITHUB_ENV
+
       - name: Install dependencies
         run: npm install
 
