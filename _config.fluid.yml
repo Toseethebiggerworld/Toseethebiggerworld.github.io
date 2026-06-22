@@ -1,0 +1,53 @@
+navbar:
+  blog_title: 我的博客
+
+index:
+  banner_img: /img/default.png
+  banner_img_height: 100
+  slogan:
+    enable: true
+    text: "记录思考，持续更新"
+
+about:
+  enable: true
+  banner_img: /img/default.png
+  banner_img_height: 60
+  avatar: /img/avatar.png
+  name: Toseethebiggerworld
+  intro: "这里记录我的学习、思考与生活。"
+  icons:
+    - { class: "iconfont icon-github-fill", link: "https://github.com/Toseethebiggerworld", tip: "GitHub" }
+
+fun_features:
+  typing:
+    enable: true
+    typeSpeed: 70
+    cursorChar: "_"
+    loop: false
+
+dark_mode:
+  enable: true
+  default: auto
+
+search:
+  enable: true
+  path: /local-search.xml
+  generate_path: /local-search.xml
+  field: post
+  content: true
+
+post:
+  meta:
+    author: true
+    date: true
+    category: true
+    tag: true
+  updated:
+    enable: false
+  comments:
+    enable: false
+  toc:
+    enable: true
+  copyright:
+    enable: true
+    license: BY
