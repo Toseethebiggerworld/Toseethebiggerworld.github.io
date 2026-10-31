@@ -2,7 +2,7 @@
 title: sea_raft:一种改进的raft光流方法
 date: 2026-10-22 12:00:00
 tags:
-  - 学习笔记
+  - 学习笔记 立体匹配 光流
 categories:
   - 技术
 ---
