@@ -9,14 +9,14 @@ categories:
 
 
 SEA-RAFT: Simple, Efficient, Accurate RAFT for Optical Flow 
-本文提出了一种改进的raft方法，提高了精度和效率：相比于原始raft，本文有四个改进点：
-(1)混合拉普拉斯损失函数：这里借鉴了稀疏匹配的方法，主要为了处理遮挡而引起的歧义区域
-(2)根据上下文直接预测初始的光流，使用类似flownet的方法，减少迭代次数
-(3)简化算法结构：特征提取直接使用imagenet的预训练resnet作为backbone，其次不使用ConvGRU 而是使用ConvNeXt
+本文提出了一种改进的raft方法，提高了精度和效率：相比于原始raft，本文有四个改进点：\
+(1)混合拉普拉斯损失函数：这里借鉴了稀疏匹配的方法，主要为了处理遮挡而引起的歧义区域 \
+(2)根据上下文直接预测初始的光流，使用类似flownet的方法，减少迭代次数 \
+(3)简化算法结构：特征提取直接使用imagenet的预训练resnet作为backbone，其次不使用ConvGRU 而是使用ConvNeXt \
 (4)在刚体光流TartanAir数据集进行预训练提高了泛化性
-1 主要方法
+# 1 主要方法
 1.1回顾raft算法结构，剩余节为sea raft改进点。
-1.1 raft算法架构回顾
+## 1.1 raft算法架构回顾
 输入左右图像$I_1,I_2$，首先获取$I_1,I_2$相似性特征图$F(I_1),F(I_2)$和$I_1$上下文特征图$C(I_1)$。然后计算左右图的金字塔特征相似性：
 
 $$
@@ -38,7 +38,7 @@ h' &= \operatorname{RNN}\left(h, M, C(I_1)\right), \\
 \end{aligned}
 $$
 
-1.2 SEA-RAFT 的 Mixture-of-Laplace Loss
+## 1.2 SEA-RAFT 的 Mixture-of-Laplace Loss
 普通 RAFT 通常直接预测光流，并使用 L1 或 endpoint error 监督：
 $$
 L_{L1}=\lVert \mu_{gt}-\mu\rVert_1
@@ -192,91 +192,53 @@ $$
 [\gamma^3,\gamma^2,\gamma,1] =[0.614,0.723,0.85,1]
 $$
 这种设计让中间预测也能得到梯度，同时更重视后期 refinement 的结果。
-1.3 直接回归初始光流
+## 1.3 直接回归初始光流
 在原始raft中 初始光流设置为0，这样显示不是很合理。在 SEA-RAFT中,借鉴flownet的思路，使用raft获得左右目上下文特征，直接预测光流值，作为sea raft的初值。这样很明显的效果是减少推理的迭代次数，加快速度。
-1.4 大规模TartanAir 刚性流预训练
+## 1.4 大规模TartanAir 刚性流预训练
 使用TartanAir 数据集进行预训练。
-1.5算法架构的改进
+## 1.5算法架构的改进
 使用imagenet预训练权重的resnet作为特征提取网络主干，并使用两个ConvNeXt替代convGRU。
-2实验
-2.1 S M L网络差异
+# 2 实验
+## 2.1 S、M、L 网络差异
 SEA-RAFT 提供 S、M、L 三种配置，主要区别是 backbone 和推理迭代次数：
-模型
-Backbone
-训练迭代
-推理迭代
-说明
-SEA-RAFT(S)
-截断的 ImageNet 预训练 ResNet-18（前 6 层）
-4
-4
-速度最快、模型最小
-SEA-RAFT(M)
-截断的 ImageNet 预训练 ResNet-34（前 13 层）
-4
-4
-精度和速度折中
-SEA-RAFT(L)
-与 M 相同
-4
-12
-与 M 共享权重，只在推理时增加迭代次数
+
+| 模型 | Backbone | 说明 |
+| --- | --- | --- |
+| SEA-RAFT(S) | 截断的 ImageNet 预训练 ResNet-18（前 6 层） | 速度最快、模型最小 |
+| SEA-RAFT(M) | 截断的 ImageNet 预训练 ResNet-34（前 13 层） | 精度和速度折中 |
+| SEA-RAFT(L) | 与 M 相同 | 与 M 共享权重，只在推理时增加迭代次数 |
 
 S/M 使用相同的循环更新结构（两个 ConvNeXt block），L 并不是重新训练的更大网络，而是用 M 的权重进行更多轮 refinement。
-2.2 训练阶段/细节
-训练采用逐阶段加载上一阶段 checkpoint 的方式：
-阶段
-数据集
-Steps
-Batch
-Crop
-最大学习率
-预训练
-TartanAir
-300k
-32
-480×640
-4e-4
-C
-FlyingChairs
-100k
-16
-368×496
-2.5e-4
-T
-FlyingThings3D
-120k
-32
-432×960
-4e-4
-S+T+K+H
-Sintel、Things clean、KITTI、HD1K 混合
-300k
-32
-432×960
-4e-4
-KITTI 微调
-KITTI
-10k
-16
-432×960
-1e-4
-Spring 微调
-Spring
-120k
-32
-540×960
-4e-4
 
-其中 C/T/S/K/H 分别代表 Chairs、Things、Sintel、KITTI、HD1K。优化器使用 AdamW 和 OneCycleLR，训练时只进行 4 轮迭代，并对初始光流及各轮 refinement 都施加 MoL sequence loss，后期预测权重更大。TartanAir 的刚体光流预训练主要用于提高场景真实性和跨数据集泛化能力。
-2.3 实验结果
-Spring： 微调后的 SEA-RAFT(M) 在测试集取得 1px=3.686、EPE=0.363、Fl=1.347、WAUC=94.534，其中 EPE 和 1px 相比此前最佳公开结果分别降低 22.9% 和 17.8%。
-Sintel/KITTI： SEA-RAFT(L) 通过把推理迭代从 4 增加到 12，进一步改善 Sintel 和 KITTI 精度；SEA-RAFT 在 KITTI 上也表现出较强的跨数据集泛化能力。
-效率： SEA-RAFT 只需 4 轮训练迭代，M/L 在 540×960 输入下约为 70.96/108.0 ms。Spring 测试采用先将 1080p 图像下采样 2 倍、推理后再上采样光流的方式，单张 RTX3090 可达到 20 fps 以上。
-消融实验： MoL loss、直接预测初始光流和 TartanAir 预训练都能改善精度；固定一个 Laplace 分量的 $\beta_1=0$ 很关键。朴素单 Laplace、朴素混合 Laplace和 Gaussian mixture 均不如论文提出的 MoL 设计。
-RNN 结构消融： 默认的两个 ConvNeXt block 取得 EPE=0.187、284.7G MACs；换回原始 RAFT 的 ConvGRU 后为 EPE=0.189、297.9G MACs；增加到四个 ConvNeXt block 后仍为 EPE=0.189，计算量增至 314.7G MACs。这说明两个 ConvNeXt block 已能取得更好的精度/计算量平衡，继续加深更新模块没有带来收益。
+## 2.2 训练阶段与细节
+训练采用逐阶段加载上一阶段 checkpoint 的方式：
+
+| 阶段 | 数据集 | Steps | Batch | Crop | 最大学习率 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 预训练 | TartanAir | 300k | 32 | 480×640 | 4e-4 |
+| C | FlyingChairs | 100k | 16 | 368×496 | 2.5e-4 |
+| T | FlyingThings3D | 120k | 32 | 432×960 | 4e-4 |
+| S+T+K+H | Sintel、Things clean、KITTI、HD1K 混合 | 300k | 32 | 432×960 | 4e-4 |
+| KITTI 微调 | KITTI | 10k | 16 | 432×960 | 1e-4 |
+| Spring 微调 | Spring | 120k | 32 | 540×960 | 4e-4 |
+
+其中，C/T/S/K/H 分别代表 Chairs、Things、Sintel、KITTI、HD1K。
+
+优化器使用 AdamW 和 OneCycleLR，训练时只进行 4 轮迭代，并对初始光流及各轮 refinement 都施加 MoL sequence loss，后期预测权重更大。TartanAir 的刚体光流预训练主要用于提高场景真实性和跨数据集泛化能力。
+
+## 2.3 实验结果
+**Spring：** 微调后的 SEA-RAFT(M) 在测试集取得 1px=3.686、EPE=0.363、Fl=1.347、WAUC=94.534，其中 EPE 和 1px 相比此前最佳公开结果分别降低 22.9% 和 17.8%。
+
+**Sintel/KITTI：** SEA-RAFT(L) 通过把推理迭代从 4 增加到 12，进一步改善 Sintel 和 KITTI 精度；SEA-RAFT 在 KITTI 上也表现出较强的跨数据集泛化能力。
+
+**效率：** SEA-RAFT 只需 4 轮训练迭代，M/L 在 540×960 输入下约为 70.96/108.0 ms。Spring 测试采用先将 1080p 图像下采样 2 倍、推理后再上采样光流的方式，单张 RTX3090 可达到 20 fps 以上。
+
+**消融实验：** MoL loss、直接预测初始光流和 TartanAir 预训练都能改善精度；固定一个 Laplace 分量的 $\beta_1=0$ 很关键。朴素单 Laplace、朴素混合 Laplace和 Gaussian mixture 均不如论文提出的 MoL 设计。
+
+**RNN 结构消融：** 默认的两个 ConvNeXt block 取得 EPE=0.187、284.7G MACs；换回原始 RAFT 的 ConvGRU 后为 EPE=0.189、297.9G MACs；增加到四个 ConvNeXt block 后仍为 EPE=0.189，计算量增至 314.7G MACs。这说明两个 ConvNeXt block 已能取得更好的精度/计算量平衡，继续加深更新模块没有带来收益。
+
 总体上，SEA-RAFT 的主要优势不是单纯扩大网络，而是通过更合理的初始光流、概率损失和预训练，使较少的迭代次数仍能取得较好的精度与速度平衡。
-附录
+# 附录
 A. mix Laplace不能把两个分量分别取 log 后再加权
 正确形式是：
 $$
@@ -289,4 +251,4 @@ $$
 前者表示真值由整个混合分布产生，是标准 mixture model 的负对数似然。
 后者是两个分量各自 NLL 的加权平均，会同时要求两个分量解释样本，从而改变训练目标。
 因此 SEA-RAFT 使用的是：
-Mixture-of-Laplace 的负对数似然，而不是两个 log-Laplace loss 的简单加权和
+Mixture-of-Laplace 的负对数似然，而不是两个 log-Laplace loss 的简单加权和。
