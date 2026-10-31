@@ -37,6 +37,10 @@ search:
   content: true
 
 post:
+  math:
+    enable: true
+    specific: false
+    engine: katex
   meta:
     author: true
     date: true
@@ -51,3 +55,9 @@ post:
   copyright:
     enable: true
     license: BY
+
+static_prefix:
+  katex: /css/
+
+custom_css:
+  - /css/texmath.css

@@ -83,3 +83,16 @@ ignore:
 
 # Extensions
 theme: fluid
+
+markdown:
+  render:
+    html: true
+    breaks: false
+    linkify: true
+  plugins:
+    - name: markdown-it-texmath
+      options:
+        delimiters: dollars
+        outerSpace: false
+        katexOptions:
+          throwOnError: false

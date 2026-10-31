@@ -17,11 +17,32 @@ SEA-RAFT: Simple, Efficient, Accurate RAFT for Optical Flow
 1 主要方法
 1.1回顾raft算法结构，剩余节为sea raft改进点。
 1.1 raft算法架构回顾
-输入左右图像$I_1,I_2$，首先获取$I_1,I_2$相似性特征图$F(I_1),F(I_2)$和$I_1$上下文特征图$C(I_1)$。然后计算左右图的金字塔特征相似性： $$ V_k = F(I_1) \circ \operatorname{AvgPool}\left(F(I_2), 2^k\right)^{\top} \in \mathbb{R}^{h \times w \times \frac{h}{2^k} \times \frac{w}{2^k}}, $$ 利用查询点附近的特征相似性lookup阶段构建motionfeature： $$ M = \operatorname{MotionEncoder}\left( \operatorname{LookUp}\left({V_k}, \mu, r\right) \right) \in \mathbb{R}^{h \times w \times D_M}, $$ 最后将上一次的隐状态$h$,motion feature $M$，上下文特征$C$输入ConvGRU得到最新的隐状态$h'$，再进行flowhead卷积得到光流变化量:
-$$ \begin{aligned} h' &= \operatorname{RNN}\left(h, M, C(I_1)\right), \ \Delta \mu &= \operatorname{FlowHead}\left(h'\right). \end{aligned} $$
+输入左右图像$I_1,I_2$，首先获取$I_1,I_2$相似性特征图$F(I_1),F(I_2)$和$I_1$上下文特征图$C(I_1)$。然后计算左右图的金字塔特征相似性：
+
+$$
+V_k = F(I_1) \circ \operatorname{AvgPool}\left(F(I_2), 2^k\right)^{\top} \in \mathbb{R}^{h \times w \times \frac{h}{2^k} \times \frac{w}{2^k}},
+$$
+
+利用查询点附近的特征相似性lookup阶段构建motionfeature：
+
+$$
+M = \operatorname{MotionEncoder}\left( \operatorname{LookUp}\left({V_k}, \mu, r\right) \right) \in \mathbb{R}^{h \times w \times D_M},
+$$
+
+最后将上一次的隐状态$h$,motion feature $M$，上下文特征$C$输入ConvGRU得到最新的隐状态$h'$，再进行flowhead卷积得到光流变化量:
+
+$$
+\begin{aligned}
+h' &= \operatorname{RNN}\left(h, M, C(I_1)\right), \\
+\Delta \mu &= \operatorname{FlowHead}\left(h'\right).
+\end{aligned}
+$$
+
 1.2 SEA-RAFT 的 Mixture-of-Laplace Loss
 普通 RAFT 通常直接预测光流，并使用 L1 或 endpoint error 监督：
-$$ L_{L1}=\lVert \mu_{gt}-\mu\rVert_1 $$
+$$
+L_{L1}=\lVert \mu_{gt}-\mu\rVert_1
+$$
 其中：
 $\mu$ 是模型预测的光流；
 $\mu_{gt}$ 是光流真值。
@@ -37,7 +58,8 @@ $\mu_{gt}$ 是光流真值。
 对一个标量 $x$，Laplace 分布的概率密度是：
 $$
 p(x\mid\mu,b)
-\frac{1}{2b} \exp\left(-\frac{|x-\mu|}{b}\right), \qquad b>0 $$
+\frac{1}{2b} \exp\left(-\frac{|x-\mu|}{b}\right), \qquad b>0
+$$
 其中：
 $x$：真值；
 $\mu$：网络预测的均值，在光流任务中就是预测光流；
@@ -45,17 +67,30 @@ $b$：Laplace 分布的尺度参数；
 $b$ 越小，分布越窄，代表模型越有信心；
 $b$ 越大，分布越宽，代表模型认为该像素越不确定。
 这里的 $b$ 不是神经网络层的 bias，也不能简单理解为方差。Laplace 分布的方差为：
-$$ \operatorname{Var}(x)=2b^2 $$
+$$
+\operatorname{Var}(x)=2b^2
+$$
 所以 $b$ 更准确的名称是 scale，即尺度参数。
 再从概率密度得到负对数似然：
 训练时希望真值在预测分布下具有尽可能高的概率，即最大化：
-$$ p(x\mid\mu,b) $$
+$$
+p(x\mid\mu,b)
+$$
 等价地，可以最小化负对数似然：
-$$ L_{Lap}=-\log p(x\mid\mu,b) $$
+$$
+L_{Lap}=-\log p(x\mid\mu,b)
+$$
 代入 Laplace 密度：
-$$ \begin{aligned} L_{Lap} &=-\log\left[ \frac{1}{2b} \exp\left(-\frac{|x-\mu|}{b}\right) \right] \ &=\log(2b)+\frac{|x-\mu|}{b} \end{aligned} $$
+$$
+\begin{aligned}
+L_{Lap} &=-\log\left[ \frac{1}{2b} \exp\left(-\frac{|x-\mu|}{b}\right) \right] \\
+&=\log(2b)+\frac{|x-\mu|}{b}
+\end{aligned}
+$$
 它包含两个相互制约的部分：
-$$ \underbrace{\log(2b)}{\text{惩罚过大的不确定性}} + \underbrace{\frac{|x-\mu|}{b}}{\text{经过不确定性缩放的预测误差}} $$
+$$
+\underbrace{\log(2b)}_{\text{惩罚过大的不确定性}} + \underbrace{\frac{|x-\mu|}{b}}_{\text{经过不确定性缩放的预测误差}}
+$$
 如果误差很大，模型可以增大 $b$，降低第二项；但第一项会随 $b$ 增大，因此模型不能无限增大不确定性来逃避误差。
 例如令 $|x-\mu|=10$：
 $b$
@@ -74,9 +109,13 @@ $ b>0 $ 在实现过程中通常 clamp $b$ to $[\epsilon, \infty)$, where $\epsi
 但是这种方式存在几个问题。
 (1)b 接近 0 时不稳定
 当 $b\to0^+$：
-$$ \log b\to-\infty $$
+$$
+\log b\to-\infty
+$$
 同时：
-$$ \frac{1}{b}\to+\infty $$
+$$
+\frac{1}{b}\to+\infty
+$$
 损失和梯度可能出现极大的数值。
 (2) clamp 会产生不光滑的边界
 小于 $\epsilon$ 的预测全部变成同一个值：
@@ -86,23 +125,40 @@ raw_b = -10、-1、0  ->  b = epsilon
 (3) 正数约束增加优化难度
 网络本身输出实数，但 $b$ 只能位于正数域，直接优化会受到参数边界的影响。
 为了解决这一问题： SEA-RAFT 不直接预测 $b$，而是预测在 log-space 中回归 b：
-$$ \boxed{\beta=\log b} $$
+$$
+\boxed{\beta=\log b}
+$$
 因此：
-$$ \boxed{b=e^\beta} $$
+$$
+\boxed{b=e^\beta}
+$$
 $\beta$ 可以是任意实数，而 $e^\beta$ 天然满足：
-$$ e^\beta>0 $$
+$$
+e^\beta>0
+$$
 将 $b=e^\beta$ 代入单 Laplace ：
 即普通 Laplace 中的 $b_i$ 替换为 $e^{\beta_i}$，就恰好得到论文中的形式：
 $$
 Lap(x;\mu,\beta_i)
-\frac{ \exp\left(-\frac{|x-\mu|}{e^{\beta_i}}\right) }{2e^{\beta_i}} $$ 对概率密度取负对数： $$ \begin{aligned} L_{Lap} &=\log(2e^\beta)+\frac{|x-\mu|}{e^\beta} \ &=\log2+\beta+|x-\mu|e^{-\beta} \end{aligned} $$
+\frac{ \exp\left(-\frac{|x-\mu|}{e^{\beta_i}}\right) }{2e^{\beta_i}}
+$$
+
+对概率密度取负对数：
+
+$$
+\begin{aligned}
+L_{Lap} &=\log(2e^\beta)+\frac{|x-\mu|}{e^\beta} \\
+&=\log2+\beta+|x-\mu|e^{-\beta}
+\end{aligned}
+$$
 因此我们得到了log空间新的的拉普拉斯概率密度函数。
 因此论文中的 “regress b(u,v) directly in log-space” 更准确的含义是：
 网络直接预测 log b，也就是 $\beta$，需要使用尺度时再通过 $b=e^\beta$ 得到正数尺度。它不是指把整个网络或所有变量都变换到对数空间。 有了log空间的拉普拉斯损失，我们考虑光流匹配的确定性与歧义性得到两个拉普拉斯混合的损失函数 Mixture-of-Laplace Loss 。单 Laplace 只有一组 $\mu,b$。如果模型为困难像素预测较大的 $b$，虽然能够表达不确定性，但会使训练目标偏离光流常用的 L1/EPE 评价目标。
 SEA-RAFT 使用两个共享均值 $\mu$、但尺度不同的 Laplace 分量：
 $$
 p_{mix}(x)
-\alpha p_1(x)+(1-\alpha)p_2(x) $$
+\alpha p_1(x)+(1-\alpha)p_2(x)
+$$
 其中：
 $p_1$ 负责普通、容易预测的像素；
 $p_2$ 负责遮挡等歧义像素；
@@ -112,14 +168,19 @@ $\alpha\in[0,1]$ 是混合系数；
 在 Mixture-of-Laplace 公式中改用 $\beta_1,\beta_2$：
 $$
 MixLap(x;\alpha,\beta_1,\beta_2,\mu)
-\alpha \frac{ e^{-\frac{|x-\mu|}{e^{\beta_1}}} }{2e^{\beta_1}} + (1-\alpha) \frac{ e^{-\frac{|x-\mu|}{e^{\beta_2}}} }{2e^{\beta_2}} $$ 进一步得到要优化的负log mix Laplace：
+\alpha \frac{ e^{-\frac{|x-\mu|}{e^{\beta_1}}} }{2e^{\beta_1}} + (1-\alpha) \frac{ e^{-\frac{|x-\mu|}{e^{\beta_2}}} }{2e^{\beta_2}}
+$$
+
+进一步得到要优化的负log mix Laplace：
 $$
 \mathcal L_{MoL}
--\frac{1}{2HW} \sum_u\sum_v\sum_{d\in{x,y}} \log\left[ MixLap(\mu_{gt}(u,v)_d;\alpha,0,\beta_2,\mu(u,v)_d) \right] $$
+-\frac{1}{2HW} \sum_u\sum_v\sum_{d\in{x,y}} \log\left[ MixLap(\mu_{gt}(u,v)_d;\alpha,0,\beta_2,\mu(u,v)_d) \right]
+$$
 与原始 RAFT 的 sequence loss 类似，SEA-RAFT 不只监督最后一次预测，而是对每一轮光流预测的 MoL loss 加权求和：
 $$
 \mathcal L_{all}
-\sum_{i=1}^{N} \gamma^{N-i}\mathcal L_{MoL}^{i} $$
+\sum_{i=1}^{N} \gamma^{N-i}\mathcal L_{MoL}^{i}
+$$
 其中：
 $N$ 表示参与监督的预测总数；
 $\mathcal L_{MoL}^{i}$ 表示第 $i$ 次预测的 Mixture-of-Laplace 负对数似然；
@@ -127,7 +188,9 @@ $\gamma<1$ 是衰减因子；
 越早的预测指数 $N-i$ 越大、权重越小；
 最后一次预测的权重为 $\gamma^0=1$。
 例如 $N=4,\gamma=0.85$ 时，各轮权重大约为：
-$$ [\gamma^3,\gamma^2,\gamma,1] =[0.614,0.723,0.85,1] $$
+$$
+[\gamma^3,\gamma^2,\gamma,1] =[0.614,0.723,0.85,1]
+$$
 这种设计让中间预测也能得到梯度，同时更重视后期 refinement 的结果。
 1.3 直接回归初始光流
 在原始raft中 初始光流设置为0，这样显示不是很合理。在 SEA-RAFT中,借鉴flownet的思路，使用raft获得左右目上下文特征，直接预测光流值，作为sea raft的初值。这样很明显的效果是减少推理的迭代次数，加快速度。
@@ -216,9 +279,13 @@ RNN 结构消融： 默认的两个 ConvNeXt block 取得 EPE=0.187、284.7G MAC
 附录
 A. mix Laplace不能把两个分量分别取 log 后再加权
 正确形式是：
-$$ -\log\left[\alpha p_1+(1-\alpha)p_2\right] $$
+$$
+-\log\left[\alpha p_1+(1-\alpha)p_2\right]
+$$
 下面这种写法不等价：
-$$ -\alpha\log p_1-(1-\alpha)\log p_2 $$
+$$
+-\alpha\log p_1-(1-\alpha)\log p_2
+$$
 前者表示真值由整个混合分布产生，是标准 mixture model 的负对数似然。
 后者是两个分量各自 NLL 的加权平均，会同时要求两个分量解释样本，从而改变训练目标。
 因此 SEA-RAFT 使用的是：
